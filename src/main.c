@@ -20,14 +20,12 @@ typedef struct {
 } buffer_t;
 
 void move(uint line, uint column) {
-  char escape_code[32] = {0};
-  snprintf(escape_code, 32, "\033[%u;%uH", line, column);
-  puts(escape_code);
+  printf("\033[%u;%uH", line, column);
 }
 
 void move_home() { move(0, 0); }
 
-void clear_scr() { puts("\033[2J"); }
+void clear() { printf("\033[2J\033[H"); }
 
 int main(int argc, char *argv[]) {
   struct stat fd_stat;
@@ -55,10 +53,9 @@ int main(int argc, char *argv[]) {
     content.data = calloc(BUFFER_SIZE, sizeof(char));
     buffer.content = content;
   }
-
-  move_home();
-  clear_scr();
+  clear();
   printf("%s", buffer.content.data);
+  move_home();
 
   int ch;
   while ((ch = getchar())) {

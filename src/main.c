@@ -28,7 +28,20 @@ void move_home() { move(0, 0); }
 
 void clear() { printf("\033[2J\033[H"); }
 
-void process_key(buffer_t *buffer, char ch) {
+void process_key_insert(buffer_t *buffer, char ch) {
+  switch (ch) {
+  case 27:
+    buffer->term.c_lflag &= ~ICANON;
+    buffer->term.c_lflag |= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &buffer->term);
+    buffer->mode = MODE_NORMAL;
+    break;
+  default:
+    break;
+  }
+}
+
+void process_key_normal(buffer_t *buffer, char ch) {
   switch (ch) {
   case 'q':
     buffer->term.c_lflag &= ICANON;
@@ -37,6 +50,9 @@ void process_key(buffer_t *buffer, char ch) {
     exit(EXIT_SUCCESS);
     break;
   case 'i':
+    buffer->term.c_lflag &= ICANON;
+    buffer->term.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &buffer->term);
     buffer->mode = MODE_INSERT;
     break;
   default:
@@ -73,6 +89,7 @@ int main(int argc, char *argv[]) {
     FILE *fp = fmemopen(buffer.content.data, BUFFER_SIZE, "rb+");
     buffer.fp = fp;
   }
+
   clear();
   printf("%s", buffer.content.data);
   move_home();
@@ -87,7 +104,10 @@ int main(int argc, char *argv[]) {
   while ((read(STDIN_FILENO, &ch, 1)) == 1) {
     switch (buffer.mode) {
     case MODE_NORMAL:
-      process_key(&buffer, ch);
+      process_key_normal(&buffer, ch);
+      break;
+    case MODE_INSERT:
+      process_key_insert(&buffer, ch);
       break;
     default:
       break;

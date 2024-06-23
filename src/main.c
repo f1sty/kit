@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <termios.h>
+#include <unistd.h>
 
 #define BUFFER_SIZE 1024
 
@@ -16,21 +18,36 @@ typedef struct {
 typedef struct {
   content_t content;
   buffer_mode_t mode;
-  FILE* fp;
+  FILE *fp;
+  struct termios term;
 } buffer_t;
 
-void move(uint line, uint column) {
-  printf("\033[%u;%uH", line, column);
-}
+void move(uint line, uint column) { printf("\033[%u;%uH", line, column); }
 
 void move_home() { move(0, 0); }
 
 void clear() { printf("\033[2J\033[H"); }
 
+void process_key(buffer_t *buffer, char ch) {
+  switch (ch) {
+  case 'q':
+    buffer->term.c_lflag &= ICANON;
+    buffer->term.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &buffer->term);
+    exit(EXIT_SUCCESS);
+    break;
+  case 'i':
+    buffer->mode = MODE_INSERT;
+    break;
+  default:
+    break;
+  }
+}
+
 int main(int argc, char *argv[]) {
   struct stat stats;
-  content_t content = {};
-  buffer_t buffer = {.mode = MODE_INSERT};
+  content_t content = {0};
+  buffer_t buffer = {.mode = MODE_NORMAL};
 
   if (argc == 2) {
     FILE *fp = fopen(argv[1], "rb+");
@@ -53,16 +70,28 @@ int main(int argc, char *argv[]) {
     content.capacity = BUFFER_SIZE;
     content.data = calloc(BUFFER_SIZE, sizeof(char));
     buffer.content = content;
-    FILE* fp = fmemopen(buffer.content.data, BUFFER_SIZE, "rb+");
+    FILE *fp = fmemopen(buffer.content.data, BUFFER_SIZE, "rb+");
     buffer.fp = fp;
   }
   clear();
   printf("%s", buffer.content.data);
   move_home();
+  fflush(stdout);
 
-  int ch;
-  while ((ch = getchar())) {
-    putchar(ch);
+  tcgetattr(STDIN_FILENO, &buffer.term);
+  buffer.term.c_lflag &= ~ICANON;
+  buffer.term.c_lflag |= ~ECHO;
+  tcsetattr(STDIN_FILENO, TCSANOW, &buffer.term);
+
+  char ch;
+  while ((read(STDIN_FILENO, &ch, 1)) == 1) {
+    switch (buffer.mode) {
+    case MODE_NORMAL:
+      process_key(&buffer, ch);
+      break;
+    default:
+      break;
+    }
   }
 
   return 0;

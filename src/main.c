@@ -16,7 +16,7 @@ typedef struct {
 typedef struct {
   content_t content;
   buffer_mode_t mode;
-  FILE fd;
+  FILE* fp;
 } buffer_t;
 
 void move(uint line, uint column) {
@@ -28,7 +28,7 @@ void move_home() { move(0, 0); }
 void clear() { printf("\033[2J\033[H"); }
 
 int main(int argc, char *argv[]) {
-  struct stat fd_stat;
+  struct stat stats;
   content_t content = {};
   buffer_t buffer = {.mode = MODE_INSERT};
 
@@ -38,20 +38,23 @@ int main(int argc, char *argv[]) {
       perror("fopen");
       return EXIT_FAILURE;
     }
-    if (fstat(fileno(fp), &fd_stat) != 0) {
+    if (fstat(fileno(fp), &stats) != 0) {
       perror("fstat");
       return EXIT_FAILURE;
     }
-    content.size = fd_stat.st_size;
+    content.size = stats.st_size;
     content.capacity = content.size + BUFFER_SIZE;
     content.data = calloc(content.capacity, sizeof(char));
     fread(content.data, sizeof(char), content.capacity, fp);
     buffer.content = content;
+    buffer.fp = fp;
   } else {
     content.size = 0;
     content.capacity = BUFFER_SIZE;
     content.data = calloc(BUFFER_SIZE, sizeof(char));
     buffer.content = content;
+    FILE* fp = fmemopen(buffer.content.data, BUFFER_SIZE, "rb+");
+    buffer.fp = fp;
   }
   clear();
   printf("%s", buffer.content.data);
